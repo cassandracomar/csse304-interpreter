@@ -30,7 +30,26 @@
    (exps (list-of expression?)))
   (void-exp))
 
-(define cond-exp? 
+(define-datatype temp-exp temp-exp?
+  (let-exp
+   (bindings (list-of paired-exp?))
+   (bodies (list-of expression?)))
+  (let*-exp
+   (bindings (list-of paired-exp?))
+   (bodies (list-of expression?)))
+  (cond-exp
+   (conditionals (list-of paired-exp?))
+   (else-exp expression?))
+  (and-exp
+   (exps (list-of expression?)))
+  (or-exp
+   (exps (list-of expression?)))
+  (case-exp
+   (sym symbol?)
+   (clauses (list-of paired-exp?))
+   (else-exp expression?)))
+
+(define paired-exp? 
   (lambda [v] (and (pair? v) (= (length v) 2))))
 (define scheme-value? (lambda (v) #t))
 
@@ -40,23 +59,22 @@
 	(eval `(and ,@(map eqv? x y)))
 	#f)))
 
-(define-syntax expand-let
-  (syntax-rules (let letrec)
-    [(_ (let ((v1 e1) ...) b1 b2 ...))
+(define-syntax expand-syntax
+  (syntax-rules (let-exp let*-exp cond-exp and-exp or-exp case-exp)
+    [(_ (let-exp ((v1 e1) ... ) b1 b2 ...))
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
-    [(_ ((v1 e1) ...) b1 b2 ...)
-     (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
-    [(_ (letrec ((v1 e1) ...) b1 b2 ...))
-     (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]))
+    [(_ (let*-exp ((v1 e1) ...) b1 b2 ...))
+     (expand-let* ((v1 e1) ...) b1 b2 ...)]
+    [(_ (or-exp ())) #f]
+    [(_ (or-exp (e1 e2 ...)))
+     `(if e1 #t ,(expand-syntax (or-exp (e2 ...))))]
+    [(_ (and-exp ())) #t]
+    [(_ (and-exp (e1 e2 ...))) `(if e1 ,(expand-syntax (and-exp (e2 ...))) #f)]))
 
 (define-syntax expand-let*
   (syntax-rules (let*)
     [(_ () b1 b2 ...) (expand-let () b1 b2 ...)]
-    [(_ (let* () b1 b2 ...)) (expand-let () b1 b2 ...)]
     [(_ ((i1 e1) (i2 e2) ...) b1 b2 ...)
-     (let [[exp (expand-let* ([i2 e2] ...) b1 b2 ...)]]
-       (eval `(expand-let ([i1 e1]) ,exp)))]
-    [(_ (let* ((i1 e1) (i2 e2) ...) b1 b2 ...))
      (let [[exp (expand-let* ([i2 e2] ...) b1 b2 ...)]]
        (eval `(expand-let ([i1 e1]) ,exp)))]))
 
@@ -88,9 +106,11 @@
 	    [(eqv? (car datum) 'begin)
 	     (parse-expression `((lambda [] ,@(cdr datum))))]
 	    [(eqv? (car datum) 'lambda)
-	     (cond ((symbol? datum) )
-	      (lambda-exp (cadr datum)
-			  (map parse-expression (cddr datum))))]
+	     (cond ((symbol? datum) (lambda-list-exp (cadr datum)
+						     (map parse-expression (cddr datum))))
+		   ((dotted-list? datum) (lambda-dotted-exp))
+		   (else (lambda-exp (cadr datum)
+				     (map parse-expression (cddr datum)))))]
 	    [(eqv? (car datum) 'if)
 	     (cond [(= (length datum) 4)
 		    (if-exp (parse-expression (cadr datum))
@@ -105,15 +125,20 @@
 	    [(eqv? (car datum) 'set!)
 	     (set!-exp (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'let)
-	     (parse-expression (eval `(expand-let ,datum)))]
+	     (parse-expression (eval `(expand-syntax (let-exp ,(cadr datum) ,@(cddr datum)))))]
 	    [(eqv? (car datum) 'let*)
 	     (parse-expression (eval `(expand-let* ,datum)))]
 	    [(eqv? (car datum) 'letrec)
 	     (let [[syms (map car (cadr datum))]
-		   [vals (map cadr (cadr datum))]]
-	       (letrec-exp (eval `(expand-let ,datum))))]
+		   [vals (map cadr (cadr datum))]
+		   [bodies (cddr datum)]]
+	       (letrec-exp syms vals bodies))]
 	    [(eqv? (car datum) 'cond)
 	     (parse-expression (eval `(expand-cond ,datum)))]
+	    [(eqv? (car datum) 'or)
+	     (parse-expression (eval `(expand-syntax (or-exp ,(cdr datum)))))]
+	    [(eqv? (car datum) 'and)
+	     (parse-expression (eval `(expand-syntax (and-exp ,(cdr datum)))))]
 	    [else (app-exp (map parse-expression datum))])]
 	  [else (eopl:error 'parse-expression
 			    "Invalid concrete syntax ~s" datum)])))
