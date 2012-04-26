@@ -6,3 +6,12 @@
 (define join (lambda [x y] (append (list x) y)))
 (define joinl (lambda [x y] (cons x (list y))))
 
+;; Returns true if the predicate is true for ANY member of the list
+(define any
+  (lambda [pred list]
+    (eval `(or ,(map pred list)))))
+
+;; Returns true if the predicate is true for ALL members of the list
+(define all
+  (lambda [pred list]
+    (eval `(and ,(map pred list)))))

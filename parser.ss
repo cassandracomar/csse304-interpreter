@@ -30,25 +30,6 @@
    (exps (list-of expression?)))
   (void-exp))
 
-(define-datatype temp-exp temp-exp?
-  (let-exp
-   (bindings (list-of paired-exp?))
-   (bodies (list-of expression?)))
-  (let*-exp
-   (bindings (list-of paired-exp?))
-   (bodies (list-of expression?)))
-  (cond-exp
-   (conditionals (list-of paired-exp?))
-   (else-exp expression?))
-  (and-exp
-   (exps (list-of expression?)))
-  (or-exp
-   (exps (list-of expression?)))
-  (case-exp
-   (sym symbol?)
-   (clauses (list-of paired-exp?))
-   (else-exp expression?)))
-
 (define paired-exp? 
   (lambda [v] (and (pair? v) (= (length v) 2))))
 (define scheme-value? (lambda (v) #t))
@@ -59,24 +40,21 @@
 	(eval `(and ,@(map eqv? x y)))
 	#f)))
 
-(define-syntax expand-syntax
-  (syntax-rules (let-exp let*-exp cond-exp and-exp or-exp case-exp)
-    [(_ (let-exp ((v1 e1) ... ) b1 b2 ...))
+(define-syntax expand-let
+  (syntax-rules (let)
+    [(_ ((v1 e1) ...) b1 b2 ...)
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
-    [(_ (let*-exp ((v1 e1) ...) b1 b2 ...))
-     (expand-let* ((v1 e1) ...) b1 b2 ...)]
-    [(_ (or-exp ())) #f]
-    [(_ (or-exp (e1 e2 ...)))
-     `(if e1 #t ,(expand-syntax (or-exp (e2 ...))))]
-    [(_ (and-exp ())) #t]
-    [(_ (and-exp (e1 e2 ...))) `(if e1 ,(expand-syntax (and-exp (e2 ...))) #f)]))
+    [(_ (let ((v1 e1) ...) b1 b2 ...))
+     (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]))
 
 (define-syntax expand-let*
   (syntax-rules (let*)
     [(_ () b1 b2 ...) (expand-let () b1 b2 ...)]
+    [(_ (let* () b1 b2 ...)) (expand-let () b1 b2 ...)]
     [(_ ((i1 e1) (i2 e2) ...) b1 b2 ...)
-     (let [[exp (expand-let* ([i2 e2] ...) b1 b2 ...)]]
-       (eval `(expand-let ([i1 e1]) ,exp)))]))
+     (eval `(expand-let ([i1 e1]) ,(expand-let* ([i2 e2] ...) b1 b2 ...)))]
+    [(_ (let* ((i1 e1) (i2 e2) ...) b1 b2 ...))
+     (eval `(expand-let ([i1 e1]) ,(expand-let* ([i2 e2] ...) b1 b2 ...)))]))
 
 (define-syntax expand-cond
   (syntax-rules (cond else)
@@ -90,6 +68,29 @@
     [(_ (cond (c1 e1) (c2 e2) ... (else en)))
      (let [[exp (expand-cond (cond (c2 e2) ... (else en)))]]
        `(if c1 e1 ,exp))]))
+
+(define-syntax expand-or
+  (syntax-rules (or)
+    [(_ (or ())) #f]
+    [(_ (or (e1 e2 ...))) `(if e1 #t ,(expand-or (or (e2 ...))))]))
+
+(define-syntax expand-and
+  (syntax-rules (and)
+    [(_ (and ())) #t]
+    [(_ (and (e1 e2 ...))) `(if e1 ,(expand-and (and (e2 ...))) #f)]))
+
+(define-syntax expand-case
+  (syntax-rules (case else)
+    [(_ (case sym)) void]
+    [(_ (case sym (else e2))) e2]
+    [(_ (case sym ((v11 v12 ...) b11 b12 ...) ((v21 v22 ...) b21 b22 ...) ...))
+     `(if (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
+	 (begin b11 b12 ...)
+	 ,(expand-case (case sym ((v21 v22 ...) b21 b22 ...) ...)))]
+    [(_ (case sym ((v11 v12 ...) b11 b12 ...) ((v21 v22 ...) b21 b22 ...) ... (else en)))
+     `(if (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
+	 (begin b11 b12 ...)
+	 ,(expand-case (case sym ((v21 v22 ...) b21 b22 ...) ... (else en))))]))
 
 (define parse-expression
   (lambda (datum)
@@ -125,7 +126,7 @@
 	    [(eqv? (car datum) 'set!)
 	     (set!-exp (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'let)
-	     (parse-expression (eval `(expand-syntax (let-exp ,(cadr datum) ,@(cddr datum)))))]
+	     (parse-expression (eval `(expand-let ,datum)))]
 	    [(eqv? (car datum) 'let*)
 	     (parse-expression (eval `(expand-let* ,datum)))]
 	    [(eqv? (car datum) 'letrec)
@@ -136,9 +137,9 @@
 	    [(eqv? (car datum) 'cond)
 	     (parse-expression (eval `(expand-cond ,datum)))]
 	    [(eqv? (car datum) 'or)
-	     (parse-expression (eval `(expand-syntax (or-exp ,(cdr datum)))))]
+	     (parse-expression (eval `(expand-or ,datum)))]
 	    [(eqv? (car datum) 'and)
-	     (parse-expression (eval `(expand-syntax (and-exp ,(cdr datum)))))]
+	     (parse-expression (eval `(expand-syntax ,datum)))]
 	    [else (app-exp (map parse-expression datum))])]
 	  [else (eopl:error 'parse-expression
 			    "Invalid concrete syntax ~s" datum)])))
