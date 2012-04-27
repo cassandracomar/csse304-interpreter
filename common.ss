@@ -15,3 +15,5 @@
 (define all
   (lambda [pred list]
     (eval `(and ,(map pred list)))))
+
+(define id (lambda (x) x))

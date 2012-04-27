@@ -40,10 +40,28 @@
 	(eval `(and ,@(map eqv? x y)))
 	#f)))
 
+(define-syntax for
+  (syntax-rules (:)
+    [(_ (init-exp : test-exp : up1 up2 ...) body)
+     (begin init-exp
+	    (let forloop []  
+	      (when test-exp (begin body
+				    (begin up1 up2 ...)
+				    (forloop)))))]))
+
+(define-syntax return-first
+  (syntax-rules ()
+    [(_ e1 e2 ...)
+     (let [[val e1]]
+       (begin e2 ... val))]))
+
 (define-syntax expand-let
   (syntax-rules (let)
     [(_ ((v1 e1) ...) b1 b2 ...)
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
+    [(_ (let name ((v1 e1) ...) b1 b2 ...))
+     `(let [[name ,(expand-let ((v1 e1) ...) b1 b2 ...)]]
+	(name))]
     [(_ (let ((v1 e1) ...) b1 b2 ...))
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]))
 
@@ -92,6 +110,14 @@
 	 (begin b11 b12 ...)
 	 ,(expand-case (case sym ((v21 v22 ...) b21 b22 ...) ... (else en))))]))
 
+(define-syntax expand-while
+  (syntax-rules (while)
+    [(_ (while test-exp b1 b2 ...))
+     '(let wloop [] (if test-exp (begin b1 b2 ... (wloop)) void))]))
+
+;; parse-expression doesn't make use of a separate syntax-expand function.
+;; It instead calls the appropriate expansion directly. This prevents the need
+;; to run through the abstract syntax tree multiple times.
 (define parse-expression
   (lambda (datum)
     (cond [(symbol? datum) (var-exp datum)]
@@ -139,7 +165,9 @@
 	    [(eqv? (car datum) 'or)
 	     (parse-expression (eval `(expand-or ,datum)))]
 	    [(eqv? (car datum) 'and)
-	     (parse-expression (eval `(expand-syntax ,datum)))]
+	     (parse-expression (eval `(expand-and ,datum)))]
+	    [(eqv? (car datum) 'while)
+	     (parse-expression (eval `(expand-while ,datum)))]
 	    [else (app-exp (map parse-expression datum))])]
 	  [else (eopl:error 'parse-expression
 			    "Invalid concrete syntax ~s" datum)])))

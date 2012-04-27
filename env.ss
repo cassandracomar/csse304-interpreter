@@ -1,5 +1,6 @@
 (load "chez-init.ss")
 (load "common.ss")
+(load "functions.ss")
 
 (define-datatype environment environment?
   [empty-env-record]
@@ -74,9 +75,11 @@
 
 (define init-env
   (lambda ()
-    (extend-env* (list 'list? 'car 'cdr 'cadr 'cdar)
-		 (list  list?  car  cdr  cadr  cdar)
-     (extend-env* (list 'list 'vector 'vector? '+ '- '< '= '/ '* 'cons 'not 'null? 'procedure? 'eq?) 
-		  (list  list  vector  vector?  +  -  <  =  /  *  cons  not  null?  procedure?  eq?) 
-		  (empty-env)))))
+    (extend-env* (list 'map    'apply 'assq 'assv 'append)
+		 (list 'smap-1 sapply sassq sassv sappend)
+     (extend-env* (list 'list? 'car 'cdr 'cadr 'cdar 'null? 'procedure? 'eq?)
+		  (list  list?  car  cdr  cadr  cdar  null?  procedure?  eq?)
+		  (extend-env* (list 'list 'vector 'vector? '+ '- '< '= '/ '* 'cons 'not 'void) 
+			       (list  list  vector  vector?  +  -  <  =  /  *  cons  not  void) 
+			       (empty-env))))))
 

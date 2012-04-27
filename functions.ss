@@ -12,8 +12,34 @@
 	  [ls (cdr args)]]
       (if (any null? ls)
 	  '()
-	  (join (sapply f (smap-1 car ls)) (smap f (smap-1 cdr ls)))))))
+	  (let [[v (sapply f (smap-1 car ls))]
+		[rest (smap f (smap-1 cdr ls))]]
+	    (print v)
+	    (print rest)
+	    (eval `(cons ,(sapply f (smap-1 car ls)) ,@rest)))))))
 
 (define sapply
   (lambda [f ls]
-    (eval (join f ls))))
+    (eval (cons f ls))))
+
+(define sappend
+  (lambda [ls1 ls2]
+    (cond [(not (list? ls1)) (eopl:error 'append "Error in: ~s -- expected proper list" ls1)]
+	  [(pair? ls1) (let [[l (car ls1)]
+			     [t (cdr ls1)]]
+			 (cons l (sappend t ls2)))]
+	  [else ls2])))
+
+(define sass-general
+  (lambda [eqv-func]
+   (lambda [obj al]
+     (if (alist? al)
+	 (let [[matches (filter (lambda (x) (eqv-func obj (car x))) al)]]
+	   (if (null? matches)
+	       #f
+	       (car matches)))
+	 (eopl:error 'assq "Error in: ~s -- expected an alist" al)))))
+
+(define sassq (sass-general eq?))
+(define sassv (sass-general eqv?))
+(define sassoc (sass-general equal?))
