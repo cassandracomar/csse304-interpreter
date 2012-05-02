@@ -37,6 +37,30 @@
 						  (extend-env symbol value (g environment)))]))]]
       (g old-env))))
 
+(define modify-env-value-car!
+  (lambda [sym new-val old-env]
+    (letrec [[g (lambda [env]
+		  (cases environment env
+			 [empty-env-record () (extend-env sym new-val (empty-env))]
+			 [extended-env-record (symbol value environment)
+					      (if (eqv? sym symbol)
+						  (extend-env sym (cons new-value (cdr value))
+							      environment)
+						  (extend-env symbol value (g environment)))]))]]
+      (g old-env))))
+
+(define modify-env-value-cdr!
+  (lambda [sym new-val old-env]
+    (letrec [[g (lambda [env]
+		  (cases environment env
+			 [empty-env-record () (extend-env sym new-val (empty-env))]
+			 [extended-env-record (symbol value environment)
+					      (if (eqv? sym symbol)
+						  (extend-env sym (cons (car value) new-value)
+							      environment)
+						  (extend-env symbol value (g environment)))]))]]
+      (g old-env))))
+
 ;;; Replaces the top level binding for the provided closure
 (define modify-env!
   (lambda [proc old-env new-env]
@@ -75,11 +99,12 @@
 
 (define init-env
   (lambda ()
-    (extend-env* (list 'map    'apply 'assq 'assv 'append)
-		 (list 'smap-1 sapply sassq sassv sappend)
-     (extend-env* (list 'list? 'car 'cdr 'cadr 'cdar 'null? 'procedure? 'eq?)
-		  (list  list?  car  cdr  cadr  cdar  null?  procedure?  eq?)
+    (extend-env* (list 'map    'apply 'assq 'assv 'append 'else 'any 'all 'eval)
+		 (list 'smap-1 sapply sassq sassv sappend  #t    any  all  eval)
+     (extend-env* (list 'list? 'car 'cdr 'cadr 'cdar 'null? 'procedure? 'eq? 'set-car! 'set-cdr!)
+		  (list  list?  car  cdr  cadr  cdar  null?  procedure?  eq?  set-car!  set-cdr!)
 		  (extend-env* (list 'list 'vector 'vector? '+ '- '< '= '/ '* 'cons 'not 'void) 
 			       (list  list  vector  vector?  +  -  <  =  /  *  cons  not  void) 
 			       (empty-env))))))
+
 

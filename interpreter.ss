@@ -18,7 +18,11 @@
 	   [lambda-exp (ids bodies)
 		       (make-closure ids bodies env)]
 	   [set!-exp (sym exp)
-		     (modify-env-value! sym (eval-expression exp env) env)]
+		     (begin (modify-env-value! sym (eval-expression exp env) env) (void))]
+	   [set-car-exp! (sym exp)
+			 (begin (modify-env-value-car! sym (eval-expression exp env) env) #f)]
+	   [set-cdr-exp! (sym exp)
+			 (begin (modify-env-value-cdr! sym (eval-expression exp env) env) (void))]
 	   [void-exp () (void)] 
 	   [app-exp (exps)
 		    (let ([vals (map (lambda (x) (eval-expression x env)) exps)])

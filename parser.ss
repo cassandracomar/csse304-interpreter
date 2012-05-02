@@ -26,6 +26,12 @@
   (set!-exp
    (sym symbol?)
    (set-exp expression?))
+  (set-car-exp!
+   (sym symbol?)
+   (set-car!-exp expression?))
+  (set-cdr-exp!
+   (sym symbol?)
+   (set-cdr!-exp expression?))
   (app-exp
    (exps (list-of expression?)))
   (void-exp))
@@ -89,17 +95,20 @@
 
 (define-syntax expand-or
   (syntax-rules (or)
+    [(_ (or)) #f]
     [(_ (or ())) #f]
-    [(_ (or (e1 e2 ...))) `(if e1 #t ,(expand-or (or (e2 ...))))]))
+    [(_ (or e1 e2 ...))  `(let [[v e1]] (if v v ,(expand-or (or e2 ...))))]))
 
 (define-syntax expand-and
   (syntax-rules (and)
+    [(_ (and)) #t]
     [(_ (and ())) #t]
-    [(_ (and (e1 e2 ...))) `(if e1 ,(expand-and (and (e2 ...))) #f)]))
+    [(_ (and e1 e2)) '(let ([v e1]) (if v e2 v))]
+     [(_ (and e1 e2 ...)) `(let [[v e1]] (if v ,(expand-and (and e2 ...)) v))]))
 
 (define-syntax expand-case
   (syntax-rules (case else)
-    [(_ (case sym)) void]
+    [(_ (case sym)) '(void)]
     [(_ (case sym (else e2))) e2]
     [(_ (case sym ((v11 v12 ...) b11 b12 ...) ((v21 v22 ...) b21 b22 ...) ...))
      `(if (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
@@ -114,6 +123,11 @@
   (syntax-rules (while)
     [(_ (while test-exp b1 b2 ...))
      '(let wloop [] (if test-exp (begin b1 b2 ... (wloop)) void))]))
+
+(define-syntax expand-apply
+  (syntax-rules (apply)
+    [(_ (apply proc (quote (l1 l2 ...))))
+     '(proc l1 l2 ...)]))
 
 ;; parse-expression doesn't make use of a separate syntax-expand function.
 ;; It instead calls the appropriate expansion directly. This prevents the need
@@ -151,6 +165,10 @@
 			     "Invalid concrete syntax ~s" datum)])]
 	    [(eqv? (car datum) 'set!)
 	     (set!-exp (cadr datum) (parse-expression (caddr datum)))]
+	    [(eqv? (car datum) 'set-car!)
+	     (set-car!-exp (cadr datum) (parse-expression (caddr datum)))]
+	    [(eqv? (car datum) 'set-car!)
+	     (set-cdr!-exp (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'let)
 	     (parse-expression (eval `(expand-let ,datum)))]
 	    [(eqv? (car datum) 'let*)
@@ -168,6 +186,10 @@
 	     (parse-expression (eval `(expand-and ,datum)))]
 	    [(eqv? (car datum) 'while)
 	     (parse-expression (eval `(expand-while ,datum)))]
+	    [(eqv? (car datum) 'case)
+	     (parse-expression (eval `(expand-case ,datum)))]
+	    [(eqv? (car datum) 'apply)
+	     (parse-expression (eval `(expand-apply ,datum)))]
 	    [else (app-exp (map parse-expression datum))])]
 	  [else (eopl:error 'parse-expression
 			    "Invalid concrete syntax ~s" datum)])))
