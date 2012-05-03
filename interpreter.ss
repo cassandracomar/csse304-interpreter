@@ -9,6 +9,8 @@
 (define eval-expression
   (lambda (exp env)
     (cases expression exp
+	   [def-exp (sym exp)
+	     (modify-global-env! sym (eval-expression exp env))]
 	   [var-exp (id) (apply-env env id)]
 	   [lit-exp (val) val]
 	   [if-exp (conditional if-true if-false)
@@ -44,9 +46,12 @@
   (lambda (proc args)
     (if (closure? proc)
 	(cases closure proc
-	       [closure-record (ids bodies env)
-			       (let [[env (extend-env* ids args env)]] 
-				 (last (map (lambda [b] 
-					     (eval-expression b env)) 
-					   bodies)))])
+	       [closure-record (ids bodies old-env)
+			       (letrec [[env (extend-env* ids args old-env)]
+					[g (lambda [curr-env last-val bs]
+					     (if (null? bs)
+						 last-val
+						 (let [[val (eval-expression (car bs) curr-env)]]
+						   (g curr-env val (cdr bs)))))]] 
+				 (g env (void) bodies))])
 	(apply proc args))))

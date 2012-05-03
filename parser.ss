@@ -1,6 +1,9 @@
 (load "common.ss")
 
 (define-datatype expression expression?
+  (def-exp
+    (symbol symbol?)
+    (exp expression?))
   (lit-exp
    (value scheme-value?))
   (var-exp
@@ -20,7 +23,7 @@
    (if-true expression?)
    (if-false expression?))
   (letrec-exp
-   (syms (list-of symbols?))
+   (syms (list-of symbol?))
    (vals (list-of scheme-value?))
    (exps (list-of expression?)))
   (set!-exp
@@ -66,7 +69,7 @@
     [(_ ((v1 e1) ...) b1 b2 ...)
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
     [(_ (let name ((v1 e1) ...) b1 b2 ...))
-     `(let [[name ,(expand-let ((v1 e1) ...) b1 b2 ...)]]
+     `(let [[name (lambda () ,(expand-let ((v1 e1) ...) b1 b2 ...))]]
 	(name))]
     [(_ (let ((v1 e1) ...) b1 b2 ...))
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]))
@@ -122,7 +125,9 @@
 (define-syntax expand-while
   (syntax-rules (while)
     [(_ (while test-exp b1 b2 ...))
-     '(let wloop [] (if test-exp (begin b1 b2 ... (wloop)) void))]))
+     '(let wloop []
+	(if test-exp
+	    (begin b1 b2 ... (wloop)) void))]))
 
 (define-syntax expand-apply
   (syntax-rules (apply)
@@ -142,6 +147,7 @@
 	  [(pair? datum)
 	   (cond
 	    [(eqv? (car datum) 'void) (void-exp)]
+	    [(eqv? (car datum) 'define) (def-exp (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'quote)
 	     (lit-exp (cadr datum))]
 	    [(eqv? (car datum) 'begin)
@@ -166,17 +172,17 @@
 	    [(eqv? (car datum) 'set!)
 	     (set!-exp (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'set-car!)
-	     (set-car!-exp (cadr datum) (parse-expression (caddr datum)))]
+	     (set-car-exp! (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'set-car!)
-	     (set-cdr!-exp (cadr datum) (parse-expression (caddr datum)))]
+	     (set-cdr-exp! (cadr datum) (parse-expression (caddr datum)))]
 	    [(eqv? (car datum) 'let)
 	     (parse-expression (eval `(expand-let ,datum)))]
 	    [(eqv? (car datum) 'let*)
 	     (parse-expression (eval `(expand-let* ,datum)))]
 	    [(eqv? (car datum) 'letrec)
 	     (let [[syms (map car (cadr datum))]
-		   [vals (map cadr (cadr datum))]
-		   [bodies (cddr datum)]]
+		   [vals (map parse-expression (map cadr (cadr datum)))]
+		   [bodies (map parse-expression (cddr datum))]]
 	       (letrec-exp syms vals bodies))]
 	    [(eqv? (car datum) 'cond)
 	     (parse-expression (eval `(expand-cond ,datum)))]

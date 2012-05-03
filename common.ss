@@ -17,3 +17,8 @@
     (eval `(and ,(map pred list)))))
 
 (define id (lambda (x) x))
+
+(define (list-set! list k val)
+    (if (zero? k)
+        (set-car! list val)
+        (list-set! (cdr list) (- k 1) val)))
