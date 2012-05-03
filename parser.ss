@@ -39,8 +39,7 @@
    (exps (list-of expression?)))
   (void-exp))
 
-(define paired-exp? 
-  (lambda [v] (and (pair? v) (= (length v) 2))))
+
 (define scheme-value? (lambda (v) #t))
 
 (define equals?
@@ -69,8 +68,8 @@
     [(_ ((v1 e1) ...) b1 b2 ...)
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
     [(_ (let name ((v1 e1) ...) b1 b2 ...))
-     `(let [[name (lambda () ,(expand-let ((v1 e1) ...) b1 b2 ...))]]
-	(name))]
+     `(letrec [[name (lambda (v1 ...) ,(expand-let ((v1 e1) ...) b1 b2 ...))]]
+	(name e1 ...))]
     [(_ (let ((v1 e1) ...) b1 b2 ...))
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]))
 
@@ -88,7 +87,7 @@
     [(_ (cond))
      '(void)]
     [(_ (cond (else en)))
-     en]
+     'en]
     [(_ (cond (c1 e1) (c2 e2) ...))
      (let [[exp (expand-cond (cond (c2 e2) ...))]]
        `(if c1 e1 ,exp))]
@@ -133,6 +132,15 @@
   (syntax-rules (apply)
     [(_ (apply proc (quote (l1 l2 ...))))
      '(proc l1 l2 ...)]))
+
+
+ (define-syntax expand-letrec 
+   (syntax-rules (letrec) 
+     ((_ (letrec ((var init) ...) . body)) 
+      '(let () 
+        (define var init) 
+        ... 
+        (let () . body))))) 
 
 ;; parse-expression doesn't make use of a separate syntax-expand function.
 ;; It instead calls the appropriate expansion directly. This prevents the need
@@ -180,10 +188,7 @@
 	    [(eqv? (car datum) 'let*)
 	     (parse-expression (eval `(expand-let* ,datum)))]
 	    [(eqv? (car datum) 'letrec)
-	     (let [[syms (map car (cadr datum))]
-		   [vals (map parse-expression (map cadr (cadr datum)))]
-		   [bodies (map parse-expression (cddr datum))]]
-	       (letrec-exp syms vals bodies))]
+	     (parse-expression (eval `(expand-letrec ,datum)))]
 	    [(eqv? (car datum) 'cond)
 	     (parse-expression (eval `(expand-cond ,datum)))]
 	    [(eqv? (car datum) 'or)

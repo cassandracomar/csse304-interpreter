@@ -24,8 +24,14 @@
 	   [set-car-exp! (sym exp)
 			 (begin (modify-env-value-car! sym (eval-expression exp env) env) #f)]
 	   [set-cdr-exp! (sym exp)
-			 (begin (modify-env-value-cdr! sym (eval-expression exp env) env) (void))]
-	   [void-exp () (void)] 
+			 (begin (modify-env-value-cdr! sym (eval-expression exp env env) (void)))]
+	   [void-exp () (void)]
+	   [letrec-exp (syms vals bodies)
+		       (map (lambda [b] (eval-expression b (extend-env*-recur
+							    syms
+							    (map (lambda [b] (eval-expression b env)) vals)
+							    env)))
+			    bodies)]
 	   [app-exp (exps)
 		    (let ([vals (map (lambda (x) (eval-expression x env)) exps)])
 		      (apply-proc (car vals) (cdr vals)))]

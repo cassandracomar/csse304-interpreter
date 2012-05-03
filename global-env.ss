@@ -13,8 +13,10 @@
 
 (define init-global-env
   (lambda ()
-    (extend-global-env* (list 'map    'apply 'assq 'assv 'append 'else 'any 'all 'eval 'pair?)
-			(list 'smap-1 sapply sassq sassv sappend  #t    any  all  eval  pair?)) 
+    (extend-global-env* (list 'cddar 'alist?)
+			(list  cddar  alist?))
+    (extend-global-env* (list 'map    'apply 'assq 'assv 'append 'else 'any 'all 'eval 'pair? 'zero? 'max)
+			(list  smap-1 sapply sassq sassv sappend  #t    any  all  eval  pair?  zero?  max)) 
     (extend-global-env* (list 'list? 'car 'cdr 'cadr 'cdar 'null? 'procedure? 'eq? 'set-car! 'set-cdr!)
 			(list  list?  car  cdr  cadr  cdar  null?  procedure?  eq?  set-car!  set-cdr!))
     (extend-global-env* (list 'list 'vector 'vector? '+ '- '< '> '= '/ '* 'cons 'not 'void 'display) 
@@ -54,3 +56,5 @@
     (begin
       (set! global-env '())
       (init-global-env))))
+
+

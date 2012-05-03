@@ -22,3 +22,5 @@
     (if (zero? k)
         (set-car! list val)
         (list-set! (cdr list) (- k 1) val)))
+(define paired-exp? 
+  (lambda [v] (and (pair? v) (= (length v) 2))))

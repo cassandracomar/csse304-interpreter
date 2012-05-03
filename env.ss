@@ -83,7 +83,7 @@
   (lambda (syms vals env)
     (let [[new-env (extend-env* syms vals env)]]
       (map (lambda (sym val)
-	     (when (proc? val)
+	     (when (procedure? val)
 		   (modify-env! sym val env new-env))) syms vals)
       new-env)))
 

@@ -1,10 +1,14 @@
 (load "common.ss")
 
+(define alist?
+  (lambda [ls]
+    (and (list? ls) (all paired-exp? ls))))
+
 (define smap-1
   (lambda [f ls]
     (if (null? ls)
 	'()
-	(join (f (car ls)) (smap-1 f (cdr ls)) ))))
+	(join (f (car ls)) (smap-1 f (cdr ls))))))
 
 (define smap
   (lambda args
