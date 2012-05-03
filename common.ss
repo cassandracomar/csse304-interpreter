@@ -22,5 +22,14 @@
     (if (zero? k)
         (set-car! list val)
         (list-set! (cdr list) (- k 1) val)))
+
+(define len
+  (lambda [v]
+    (if (list? v)
+     (if (null? v)
+	 0
+	 (+ 1 (len (cdr v))))
+     1)))
+
 (define paired-exp? 
-  (lambda [v] (and (pair? v) (= (length v) 2))))
+  (lambda [v] (and (pair? v) (= (len v) 2))))

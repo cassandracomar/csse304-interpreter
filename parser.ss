@@ -1,6 +1,8 @@
 (load "common.ss")
 
 (define-datatype expression expression?
+  (begin-exp
+   (bodies (list-of expression?)))
   (def-exp
     (symbol symbol?)
     (exp expression?))
@@ -22,10 +24,6 @@
    (conditional expression?)
    (if-true expression?)
    (if-false expression?))
-  (letrec-exp
-   (syms (list-of symbol?))
-   (vals (list-of scheme-value?))
-   (exps (list-of expression?)))
   (set!-exp
    (sym symbol?)
    (set-exp expression?))
@@ -68,7 +66,7 @@
     [(_ ((v1 e1) ...) b1 b2 ...)
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]
     [(_ (let name ((v1 e1) ...) b1 b2 ...))
-     `(letrec [[name (lambda (v1 ...) ,(expand-let ((v1 e1) ...) b1 b2 ...))]]
+     `(letrec [[name (lambda (v1 ...) b1 b2 ...)]]
 	(name e1 ...))]
     [(_ (let ((v1 e1) ...) b1 b2 ...))
      (quote ((lambda (v1 ...) b1 b2 ...) e1 ...))]))
@@ -159,7 +157,7 @@
 	    [(eqv? (car datum) 'quote)
 	     (lit-exp (cadr datum))]
 	    [(eqv? (car datum) 'begin)
-	     (parse-expression `((lambda [] ,@(cdr datum))))]
+	     (begin-exp (map parse-expression (cdr datum)))]
 	    [(eqv? (car datum) 'lambda)
 	     (cond ((symbol? datum) (lambda-list-exp (cadr datum)
 						     (map parse-expression (cddr datum))))
