@@ -61,6 +61,9 @@
      (let [[val e1]]
        (begin e2 ... val))]))
 
+(define-syntax let-cps
+  [])
+
 (define-syntax expand-let
   (syntax-rules (let)
     [(_ ((v1 e1) ...) b1 b2 ...)
@@ -79,6 +82,31 @@
      (eval `(expand-let ([i1 e1]) ,(expand-let* ([i2 e2] ...) b1 b2 ...)))]
     [(_ (let* ((i1 e1) (i2 e2) ...) b1 b2 ...))
      (eval `(expand-let ([i1 e1]) ,(expand-let* ([i2 e2] ...) b1 b2 ...)))]))
+
+;; for now, the pred must be a cps procedure, but must not have the continuation passed to it.
+(define-syntax if-cps
+  (syntax-rules ()
+    [(_ test-exp true-exp false-exp cont)
+     (when true-exp (cont true-exp) (cont false-exp))]
+    [(_ test-exp true-exp cont)
+     (if true-exp (cont true-exp))]
+    [(_ (pred a1 ...) true-exp false-exp cont)
+     (pred a1 ... (lambda (v)
+		    (if v (cont true-exp) (cont false-exp))))]
+    [(_ (pred a1 ...) true-exp cont)
+     (pred a1 ... (lambda (v)
+		    (when v (cont true-exp))))]))
+
+(define-syntax cond-cps
+  (syntax-rules (else)
+    [(_ cont)
+     (cont (void))]
+    [(_ (else en) cont)
+     (cont en)]
+    [(_ (c1 e1) (c2 e2) ... cont)
+     (if-cps c1 e1 (cond-cps (c2 e2) ... cont) cont)]
+    [(_ (c1 e1) (c2 e2) ... (else en) cont)
+     (if-cps c1 e1 (cond-cps (c2 e2) ... (else en) cont) cont)]))
 
 (define-syntax expand-cond
   (syntax-rules (cond else)
