@@ -12,8 +12,7 @@
 	   [def-exp (sym exp)
 	     (modify-global-env! sym (eval-expression exp env))]
 	   [begin-exp (bodies)
-		      (letrec [[env (extend-env* ids args old-env)]
-			       [g (lambda [curr-env last-val bs]
+		      (letrec [[g (lambda [curr-env last-val bs]
 				    (if (null? bs)
 					last-val
 					(let [[val (eval-top-level (car bs) curr-env)]]
@@ -43,7 +42,7 @@
   (lambda (exp env)
     (cases expression exp
 	   [def-exp (sym exp)
-	    ; (set! env (extend-env sym (eval-expression exp env) env))
+	     ;(extend-env sym (eval-expression exp env) env)
 	     (modify-global-env! sym (eval-expression exp env))
 	     ]
 	   [begin-exp (bodies)
