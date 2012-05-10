@@ -61,8 +61,19 @@
      (let [[val e1]]
        (begin e2 ... val))]))
 
+(define-syntax make-cps
+  (syntax-rules ()
+    [(_ (p1 a1 ...) cont) (apply-cps p1 a1 ... cont)]))
+
+(define-syntax apply-cps
+  (syntax-rules ()
+    [(_ e1 e2 ... cont)
+     (make-cps e1 (lambda (v) (apply-cps e2 ... cont)))]))
+
 (define-syntax let-cps
-  [])
+  (syntax-rules ()
+    [(_ ((v1 e1) ...) b1 b2 ... cont)
+     '(apply-cps (lambda (v1 ...) b1 b2 ...) e1 ... cont)]))
 
 (define-syntax expand-let
   (syntax-rules (let)
