@@ -109,6 +109,11 @@
 			  (define sym v)
 			  (cont 'void)))]))
 
+(define-syntax def-cps ;;top level define replacement
+  (syntax-rules ()
+    [(_ sym val)
+     (define sym (cps-transform val id))]))
+
 (define-syntax sequence-cps
   (syntax-rules ()
     [(_ b1 cont)
@@ -136,10 +141,11 @@
   (lambda (args k)
     (if (null? args)
 	(k '())
-	(cps-terms (cdr args)
-		   (lambda (v1)
-		     (cps-transform (car args)
-				    (lambda (v2) (k (pappend v1 v2)))))))))
+	(cps-transform (car args)
+		       (lambda (v1)
+			 (cps-terms (cdr args)
+				    (lambda (v2)
+				      (cons v2 v1))))))))
 
 (define-syntax cps-transform
   (syntax-rules ()
@@ -162,102 +168,86 @@
 	   (else (eval `(app-cps ,@datum cont)))))]))
 
 (define primitives
-  '(and or
-    + - * / % > < <= >= >> <<
-    bitwise-or bitwise-and
-    type
+  '(+ - * / > < <= >= >> <<
+    mod
     number?
     string?
     symbol?
-    key?
     boolean?
     null?
     list?
     vector?
-    dict?
-    function?
-    literal?
-    str
-    symbol->key
-    key->symbol
-    string->key
-    key->string
+    proc?
     string->symbol
     symbol->string
-    _emptylst
     list
     cons
     car
     cdr
+    caar
     cadr
     cddr
     cdar
+    caaar
     caddr
     cdddr
+    cdaar
     cadar
-    cddar
     caadr
+    caddr
+    cddar
     cdadr
+    caaaar
+    cdaaar
+    cadaar
+    caadar
+    caaadr
+    cddaar
+    caddar
+    caaddr
+    cdadar
+    cadadr
+    cdaadr
+    cdddar
+    cddadr
+    cdaddr
+    cadddr
+    cddddr
     list-ref
+    append
+    join
+    joinl
     length
-    list-append
-    _list-append
-    list-find
+    len
     map
+    all
+    any
+    id
+    compose
     for-each
-    fold
+    fold-left
+    fold-right
+    foldr
+    foldl
     reverse
     vector->list
     make-vector
     vector
     vector-ref
-    vector-put!
-    vector-concat
-    vector-slice
-    vector-push!
-    vector-find
+    vector-set!
     vector-length
     list->vector
     vector-map
     vector-for-each
-    vector-fold
-    dict
-    dict-put!
-    dict-ref
-    dict-map
-    dict-merge
-    dict->vector
-    dict->list
-    keys
-    vals
-    zip
     not
-    ==
     =
     eq?
+    eqv?
     equal?
-    print
-    println
-    pp
-    %inspect-non-sequence
-    %recur-protect
-    %space
+    pretty-print
     inspect
     apply
-    trampoline-result?
-    trampoline
-    %gensym-base
-    gensym-fresh
-    gensym
-    cps-trampoline
-    cps-jump
-    cps-halt
-    RegExp
-    s.match
-    fs.readFileSync
-    throw
-    parseInt
-    parseFloat))
+    gensym))
 
 (define make-prim-cps
   (lambda [f]
@@ -270,7 +260,4 @@
 (define transformed-prims
   (map (lambda (prim tprim) `(,prim ,tprim)) primitives (map make-prim-cps primitives)))
 
-(define-syntax def-cps
-  (syntax-rules ()
-    [(_ sym val)
-     (define sym (cps-transform val id))]))
+
