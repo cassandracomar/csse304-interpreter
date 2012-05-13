@@ -1,5 +1,9 @@
 
-
+(define rep
+  (lambda ()
+    (let [[inp (read)]]
+      (eval-expression (parse-expression inp) (init-env))
+      (rep))))
 
 (define eval-one-exp
   (lambda (exp)

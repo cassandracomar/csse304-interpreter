@@ -61,19 +61,7 @@
      (let [[val e1]]
        (begin e2 ... val))]))
 
-(define-syntax make-cps
-  (syntax-rules ()
-    [(_ (p1 a1 ...) cont) (apply-cps p1 a1 ... cont)]))
 
-(define-syntax apply-cps
-  (syntax-rules ()
-    [(_ e1 e2 ... cont)
-     (make-cps e1 (lambda (v) (apply-cps e2 ... cont)))]))
-
-(define-syntax let-cps
-  (syntax-rules ()
-    [(_ ((v1 e1) ...) b1 b2 ... cont)
-     '(apply-cps (lambda (v1 ...) b1 b2 ...) e1 ... cont)]))
 
 (define-syntax expand-let
   (syntax-rules (let)
@@ -93,31 +81,6 @@
      (eval `(expand-let ([i1 e1]) ,(expand-let* ([i2 e2] ...) b1 b2 ...)))]
     [(_ (let* ((i1 e1) (i2 e2) ...) b1 b2 ...))
      (eval `(expand-let ([i1 e1]) ,(expand-let* ([i2 e2] ...) b1 b2 ...)))]))
-
-;; for now, the pred must be a cps procedure, but must not have the continuation passed to it.
-(define-syntax if-cps
-  (syntax-rules ()
-    [(_ test-exp true-exp false-exp cont)
-     (when true-exp (cont true-exp) (cont false-exp))]
-    [(_ test-exp true-exp cont)
-     (if true-exp (cont true-exp))]
-    [(_ (pred a1 ...) true-exp false-exp cont)
-     (pred a1 ... (lambda (v)
-		    (if v (cont true-exp) (cont false-exp))))]
-    [(_ (pred a1 ...) true-exp cont)
-     (pred a1 ... (lambda (v)
-		    (when v (cont true-exp))))]))
-
-(define-syntax cond-cps
-  (syntax-rules (else)
-    [(_ cont)
-     (cont (void))]
-    [(_ (else en) cont)
-     (cont en)]
-    [(_ (c1 e1) (c2 e2) ... cont)
-     (if-cps c1 e1 (cond-cps (c2 e2) ... cont) cont)]
-    [(_ (c1 e1) (c2 e2) ... (else en) cont)
-     (if-cps c1 e1 (cond-cps (c2 e2) ... (else en) cont) cont)]))
 
 (define-syntax expand-cond
   (syntax-rules (cond else)
@@ -168,7 +131,9 @@
 (define-syntax expand-apply
   (syntax-rules (apply)
     [(_ (apply proc (quote (l1 l2 ...))))
-     '(proc l1 l2 ...)]))
+     '(proc l1 l2 ...)]
+    [(_ (apply proc ls))
+     `(proc ,@ls)]))
 
 
  (define-syntax expand-letrec 
@@ -185,10 +150,10 @@
 (define parse-expression
   (lambda (datum)
     (cond [(symbol? datum) (var-exp datum)]
-	  [(number? datum) (lit-exp datum)]
-	  [(boolean? datum) (lit-exp datum)]
-	  [(string? datum) (lit-exp datum)]
-	  [(vector? datum) (lit-exp datum)]
+	  [(or (number? datum)
+	       (boolean? datum)
+	       (string? datum)
+	       (vector? datum)) (lit-exp datum)]
 	  [(pair? datum)
 	   (cond
 	    [(eqv? (car datum) 'void) (void-exp)]

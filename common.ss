@@ -5,16 +5,17 @@
 (define dotted-list? (lambda [ls] (cond ((null? ls) #f) ((null? (cdr ls)) #f) ((symbol? (cdr ls)) #t)(else (dotted-list? (cdr ls))))))
 (define join (lambda [x y] (append (list x) y)))
 (define joinl (lambda [x y] (cons x (list y))))
+(define pappend (lambda [x y] (append x (list y))))
 
 ;; Returns true if the predicate is true for ANY member of the list
 (define any
   (lambda [pred list]
-    (eval `(or ,(map pred list)))))
+    (eval `(or ,@(map pred list)))))
 
 ;; Returns true if the predicate is true for ALL members of the list
 (define all
   (lambda [pred list]
-    (eval `(and ,(map pred list)))))
+    (eval `(and ,@(map pred list)))))
 
 (define id (lambda (x) x))
 
@@ -33,3 +34,12 @@
 
 (define paired-exp? 
   (lambda [v] (and (pair? v) (= (len v) 2))))
+
+(define compose-two
+  (lambda [f g]
+    (lambda args
+      (f (apply g args)))))
+
+(define compose
+  (lambda fs
+    (foldr compose-two id fs)))
