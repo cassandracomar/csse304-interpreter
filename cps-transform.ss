@@ -3,27 +3,27 @@
 (define atom?
   (lambda (datum)
     (any (lambda (pred) (pred datum))
-	 (list number? boolean? string? vector? symbol? null?))))
+	 (list number? boolean? string? vector? symbol? null? procedure?))))
 
 (define-syntax let-cps
   (syntax-rules ()
     [(_ ((v1 e1) ...) b1 b2 ... cont)
-     (cps-transform '((lambda (v1 ...) b1 b2 ...) e1 ...) cont)]
+     `(cps-transform ((lambda (v1 ...) b1 b2 ...) e1 ...) cont)]
     [(_ name ((v1 e1) ...) b1 b2 ... cont)
-     (cps-transform '(letrec [[name (lambda (v1 ...) b1 b2 ...)]]
+     `(cps-transform (letrec [[name (lambda (v1 ...) b1 b2 ...)]]
 		       (name e1 ...)) cont)]))
 
 (define-syntax let*-cps
   (syntax-rules ()
     [(_ ((v1 e1)) b1 b2 ... cont)
-     (cps-transform '((lambda (v1) b1 b2 ...) e1) cont)]
+     `(cps-transform ((lambda (v1) b1 b2 ...) e1) cont)]
     [(_ ((v1 e1) (v2 e2) ...) b1 b2 ... cont)
-     (cps-transform `((lambda (v1) ,(let*-cps ((v2 e2) ...) id)) e1) cont)]))
+     `(cps-transform ((lambda (v1) ,(let*-cps ((v2 e2) ...) id)) e1) cont)]))
 
 (define-syntax letrec-cps
   (syntax-rules ()
     [(_ ((var init) ...) b1 ... cont)
-     (cps-transform '(begin
+     `(cps-transform (begin
 		       (define var init)
 		       ...
 		       (begin b1 ...)) cont)]))
@@ -31,33 +31,33 @@
 (define-syntax cond-cps
   (syntax-rules (else)
     [(_ cont)
-     (cont (void))]
+     `(cont (void))]
     [(_ (else en) cont)
-     (cont en)]
+     `(cont en)]
     [(_ (c1 e1) (c2 e2) ... cont)
-     (if-cps c1 e1 (cond-cps (c2 e2) ... cont) cont)]
+     `(if c1 e1 ,(cond-cps (c2 e2) ... cont))]
     [(_ (c1 e1) (c2 e2) ... (else en) cont)
-     (if-cps c1 e1 (cond-cps (c2 e2) ... (else en) cont) cont)]))
+     `(if c1 e1 ,(cond-cps (c2 e2) ... (else en) cont))]))
 
 (define-syntax case-cps
-  (syntax-rules (case else)
-    [(_ sym cont) (cont void)]
-    [(_ sym (else e2) cont) (cps-transform e2 cont)]
+  (syntax-rules (else)
+    [(_ sym cont) `(cont void)]
+    [(_ sym (else e2) cont) `(cps-transform e2 cont)]
     [(_ sym ((v11 v12 ...) b11 b12 ...) ((v21 v22 ...) b21 b22 ...) ... cont)
-     (if-cps (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
-	 (begin-cps b11 b12 ... cont)
-	 (case-cps sym ((v21 v22 ...) b21 b22 ...) ... cont))]
+     `(if (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
+	  ,(begin-cps b11 b12 ... cont)
+	  ,(case-cps sym ((v21 v22 ...) b21 b22 ...) ... cont))]
     [(_ sym ((v11 v12 ...) b11 b12 ...) ((v21 v22 ...) b21 b22 ...) ... (else en) cont)
-     (if (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
-	 (begin-cps b11 b12 ... cont)
-	 (case-cps sym ((v21 v22 ...) b21 b22 ...) ... (else en) cont))]))
+     `(if (any (lambda (x) (eqv? sym x)) (quote (v11 v12 ...)))
+	  ,(begin-cps b11 b12 ... cont)
+	  ,(case-cps sym ((v21 v22 ...) b21 b22 ...) ... (else en) cont))]))
 
 (define-syntax or-cps
   (syntax-rules ()
-    [(_ cont) (cont #f)]
-    [(_ () cont) (cont #f)]
+    [(_ cont) `(cont #f)]
+    [(_ () cont) `(cont #f)]
     [(_  e1 e2 ... cont)
-     (cps-transform e1 (lambda (v)
+     `(cps-transform e1 (lambda (v)
 			 (if v
 			     (cont v)
 			     (or-cps e2 ... cont))))]))
@@ -67,27 +67,27 @@
     [(_ cont) (cont #t)]
     [(_  () cont) (cont #t)]
     [(_ e1 e2 cont)
-     (cps-transform
-      e1 (lambda (v1) (if v1
-			  (cps-transform v2 (lambda (v2) (cont v2)))
+     `(cps-transform
+       e1 (lambda (v1) (if v1
+			   (cps-transform v2 (lambda (v2) (cont v2)))
 			  (cont v1))))]
     [(_ e1 e2 ... cont)
-     (cps-transform
-      e1 (lambda (v1) (if v1
-			  (and-cps e2 ... cont)
-			  (cont v1))))]))
+     `(cps-transform
+       e1 (lambda (v1) (if v1
+			   (and-cps e2 ... cont)
+			   (cont v1))))]))
 
 
 (define-syntax if-cps
   (syntax-rules ()
     [(_ test-exp true-exp false-exp cont)
-     (cps-transform true-exp
+     `(cps-transform test-exp
 		    (lambda (v)
 		      (if v
 			  (cps-transform true-exp cont)
 			  (cps-transform false-exp cont))))]
     [(_ test-exp true-exp cont)
-     (cps-transform true-exp (lambda (v) (when v (cps-transform true-exp cont))))]))
+     `(cps-transform test-exp (lambda (v) (when v (cps-transform true-exp cont))))]))
 
 (define-syntax begin-cps
   (syntax-rules ()
@@ -132,40 +132,41 @@
 ;;define functions with def-cps to automatically transform new functions into cps style
 (define-syntax app-cps
   (syntax-rules ()
-    [(_ proc a1 a2 ... cont)
-     (let [[tproc (assv (quote proc) transformed-prims)]]
-       (cps-terms (list a1 a2 ...)
-		  (lambda (v) (cont (apply (if (null? tproc) proc tproc) v)))))]))
+    [(_ proc a1 ... cont)
+     (let* [[tproc (assv (quote proc) transformed-prims)]]
+       `(cps-transform ,(if tproc (cadr tproc) proc)
+		       (lambda (p) ,(cps-terms a1 ... (lambda (v) (cont (apply p v)))))))]))
 
-(define cps-terms
-  (lambda (args k)
-    (if (null? args)
-	(k '())
-	(cps-transform (car args)
-		       (lambda (v1)
-			 (cps-terms (cdr args)
-				    (lambda (v2)
-				      (cons v2 v1))))))))
+(define-syntax cps-terms
+  (syntax-rules ()
+    [(_ k)
+     '(k '())]
+    [(_ a1 a2 k)
+     '(cps-transform a1 (lambda (v1) (cps-transform a2 (lambda (v2) (k (cons v1 v2))))))]
+    [(_ a1 a2 ... k)
+     (let [[v1 (gensym)]
+	   [v2 (gensym)]]
+       `(cps-transform a1 (lambda (,v1) ,(cps-terms a2 ... `(lambda (,v2) (k (cons ,v1 ,v2)))))))]))
 
 (define-syntax cps-transform
   (syntax-rules ()
     [(_ datum cont)
      (if (atom? datum) (cont datum)
 	 (case (car datum)
-	   ((quote) (eval `(cont ,@(cdr datum))))
-	   ((if) (eval `(if-cps ,@(cdr datum) cont)))
-	   ((begin) (eval `(begin-cps ,@(cdr datum) cont)))
-	   ((set!) (eval `(set!-cps ,@(cdr datum) cont)))
-	   ((define) (eval `(define-cps ,@(cdr datum) cont)))
-	   ((lambda) (eval `(lambda-cps ,@(cdr datum) cont)))
-	   ((let) (eval `(let-cps ,@(cdr datum) cont)))
-	   ((let*) (eval `(let*-cps ,@(cdr datum) cont)))
-	   ((letrec) (eval `(letrec-cps ,@(cdr datum) cont)))
-	   ((cond) (eval `(cond-cps ,@(cdr datum) cont)))
-	   ((case) (eval `(case-cps ,@(cdr datum) cont)))
-	   ((or) (eval `(or-cps ,@(cdr datum) cont)))
-	   ((and) (eval `(and-cps ,@(cdr datum) cont)))
-	   (else (eval `(app-cps ,@datum cont)))))]))
+	   ((quote)    (eval `(cont ,@(cdr datum))))
+	   ((if)       (eval `(if-cps ,@(cdr datum) cont)))
+	   ((begin)    (eval `(begin-cps ,@(cdr datum) cont)))
+	   ((set!)     (eval `(set!-cps ,@(cdr datum) cont)))
+	   ((define)   (eval `(define-cps ,@(cdr datum) cont)))
+	   ((lambda)   (eval `(lambda-cps ,@(cdr datum) cont)))
+	   ((let)      (eval `(let-cps ,@(cdr datum) cont)))
+	   ((let*)     (eval `(let*-cps ,@(cdr datum) cont)))
+	   ((letrec)   (eval `(letrec-cps ,@(cdr datum) cont)))
+	   ((cond)     (eval `(cond-cps ,@(cdr datum) cont)))
+	   ((case)     (eval `(case-cps ,@(cdr datum) cont)))
+	   ((or)       (eval `(or-cps ,@(cdr datum) cont)))
+	   ((and)      (eval `(and-cps ,@(cdr datum) cont)))
+	   (else       (eval `(app-cps ,@datum cont)))))]))
 
 (define primitives
   '(+ - * / > < <= >= >> <<
@@ -251,13 +252,13 @@
 
 (define make-prim-cps
   (lambda [f]
-    (lambda args
+    `(lambda args
       (let* [[rev (reverse args)]
 	     [cont (car rev)]
 	     [args (reverse (cdr rev))]]
-	(cont (f args))))))
+	(cont (apply ,f args))))))
 
 (define transformed-prims
-  (map (lambda (prim tprim) `(,prim ,tprim)) primitives (map make-prim-cps primitives)))
+  (map (lambda (prim tprim) (list prim tprim)) primitives (map make-prim-cps primitives)))
 
 
