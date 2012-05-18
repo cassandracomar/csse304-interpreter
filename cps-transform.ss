@@ -134,19 +134,20 @@
   (syntax-rules ()
     [(_ proc a1 ... cont)
      (let* [[tproc (assv (quote proc) transformed-prims)]]
-       `(cps-transform ,(if tproc (cadr tproc) proc)
-		       (lambda (p) ,(cps-terms a1 ... (lambda (v) (cont (apply p v)))))))]))
+       `(cps-transform (if ,tproc (cadr ,tproc) proc)
+		       (lambda (p) (cps-terms (list a1 ...)
+					       (lambda (v) (apply p
+								  (append v (list cont))))))))]))
 
-(define-syntax cps-terms
-  (syntax-rules ()
-    [(_ k)
-     '(k '())]
-    [(_ a1 a2 k)
-     '(cps-transform a1 (lambda (v1) (cps-transform a2 (lambda (v2) (k (cons v1 v2))))))]
-    [(_ a1 a2 ... k)
-     (let [[v1 (gensym)]
-	   [v2 (gensym)]]
-       `(cps-transform a1 (lambda (,v1) ,(cps-terms a2 ... `(lambda (,v2) (k (cons ,v1 ,v2)))))))]))
+(define cps-terms
+  (lambda (args k)
+    (if (null? args)
+	(k '())
+	(let [[v1 (gensym)]
+	      [v2 (gensym)]]
+	  (cps-transform (car args)
+			  (lambda (v1) (cps-terms (cdr args)
+						   (lambda (v2) (k (cons v1 v2))))))))))
 
 (define-syntax cps-transform
   (syntax-rules ()
